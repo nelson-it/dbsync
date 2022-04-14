@@ -1,40 +1,58 @@
 #!/bin/bash
 
-. ../dbcfg
-
 while [ $# -gt 0 ] ; do
   case $1 in
-    -sdb)   origdb=$2; shift 2;;
-    -shost) orighost=$2; shift 2;;
-    -ddb)   checkdb=$2; shift 2;;
-    -dhost) checkhost=$2; shift 2;;
+    -sdb)   origdb=$2; shift 2;;              # source db
+    -shost) orighost=$2; shift 2;;            # source host
+    -spass) origpass=$2; shift 2;;            # source password
+    -ddb)   checkdb=$2; shift 2;;             # dest db
+    -dhost) checkhost=$2; shift 2;;           # dest host
+    -dpass) checkpass=$2; shift 2;;           # dest passwd
+    -devhost) develophost=$2; shift 2;;       # develop host
      *)     shift 1 ;;
   esac
 done
 
-function dbcopy ()
-{
-  savedb=$1.save;
-  sourcedb=$1;
-  sourcehost=$2;
-  user=$3
-  
-  echo 'DROP DATABASE "'$savedb'";
-        CREATE DATABASE "'$savedb'" 
-            WITH OWNER = admindb 
-            ENCODING = '\'UTF8\'' 
-            TABLESPACE = pg_default 
-            TEMPLATE = template0 
-            LC_COLLATE = '\'de_CH.UTF-8\'' 
-            LC_CTYPE = '\'de_CH.UTF-8\'' 
-            CONNECTION LIMIT = -1;' \
-  | psql --username=admindb --host=$sourcehost $sourcedb
-
-    pg_dump --username=$user --host=$sourcehost --format=c $sourcedb | pg_restore --host=$sourcehost --username=$user --dbname="$savedb"
-}
-
-export PGPASSWORD=$origpass
-dbcopy $origdb $orighost $origuser
+echo -n "Password for admindb: "
+stty -echo < /dev/tty
+read checkpass
+stty echo < /dev/tty
+echo
 
 export PGPASSWORD=$checkpass
-dbcopy $checkdb $checkhost $checkuser
+get_data()
+{
+   echo "$1" | sed -e "s@par1@$2@" -e "s@par2@$3@" -e "s@par3@$4@" | psql --tuples-only --no-align -E -h $checkhost -p $checkport -U $checkuser postgres
+}
+
+connections=
+connections=$( connections=0
+  get_data "SELECT client_addr, usename FROM pg_stat_activity where datname = 'par1'" $checkdb | sed -e "s/|/ - /g" | \
+    while read line
+    do
+      let connections=connections+1
+      echo $line
+    done
+) 
+
+if [ "$connections" != "" ]; then
+  echo "Database has connections - please disconnect"
+  echo "$connections"
+  exit 1
+fi
+
+savedb="$checkdb"_$(date +"%s")
+
+if [ "$precmd" != "" ]; then
+  get_data "$precmd"
+fi
+ 
+get_data "ALTER DATABASE par1 RENAME TO par2" "$checkdb" "$savedb" 
+get_data 'CREATE DATABASE "'$checkdb'" WITH OWNER = admindb ENCODING = '\'UTF8\'' TEMPLATE = template0 LC_COLLATE = '\'C.UTF-8\'' LC_CTYPE = '\'C.UTF-8\'' CONNECTION LIMIT = -1;' 
+
+pg_dump --username=$origuser --host=$develophost --format=c $origdb | pg_restore --host=$checkhost --username=$checkuser --dbname="$checkdb"
+
+if [ "$postcmd" != "" ]; then
+  get_data "$postcmd"
+fi
+ 
