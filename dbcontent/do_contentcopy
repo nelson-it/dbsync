@@ -120,14 +120,6 @@ echo "DELETE FROM $schema.tableconstraintmessages t WHERE EXISTS ( SELECT 1 FROM
 create_insert $schema $schemasave 'tableconstraintmessages'
 
 #===================================================
-# TRANSLATE
-#===================================================
-echo "DELETE FROM $schema.translate t WHERE EXISTS ( SELECT 1 FROM $schemasave.translate s WHERE t.id = s.id AND t.text_en = '' AND t.text_de = '' );"
-echo "DELETE FROM $schemasave.translate WHERE id in ( SELECT id FROM $schema.translate );"
-
-create_insert $schema $schemasave 'translate'
-
-#===================================================
 # TRUSTREQUEST
 #===================================================
 echo "DELETE FROM $schema.trustrequest where trustrequestid IN ( SELECT trustrequestid from $schemasave.trustrequest );" 

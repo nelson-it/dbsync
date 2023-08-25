@@ -98,7 +98,6 @@ read_table $schema tableconstraintmessages
 #===================================================
 # TRANSLATE
 #===================================================
-echo "CREATE TABLE $schemasave.translate  AS SELECT * from $schema.translate;"
 read_table $schema translate
 
 #===================================================
